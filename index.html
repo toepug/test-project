@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corneal Astigmatism Visualizer</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Corneal Astigmatism Visualizer</h1>
+    <nav class="views" aria-label="Camera presets">
+      <button type="button" data-view="iso">45°</button>
+      <button type="button" data-view="front">Front</button>
+      <button type="button" data-view="side">Side</button>
+      <button type="button" data-view="top">Top</button>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Cornea</h2>
+      <div class="control">
+        <label for="input-curvature-1"><span><i class="swatch c1"></i>Curvature 1</span><output id="out-curvature-1"></output></label>
+        <div class="slider">
+          <input type="range" id="input-curvature-1" min="38" max="50" step="0.25" value="42">
+          <span class="retina-tick" id="tick-curvature-1" title="Focuses on the retina"></span>
+        </div>
+      </div>
+      <div class="control">
+        <label for="input-curvature-2"><span><i class="swatch c2"></i>Curvature 2</span><output id="out-curvature-2"></output></label>
+        <div class="slider">
+          <input type="range" id="input-curvature-2" min="38" max="50" step="0.25" value="45">
+          <span class="retina-tick" id="tick-curvature-2" title="Focuses on the retina"></span>
+        </div>
+      </div>
+      <p class="hint"><i class="tick-key"></i>Green tick: the setting where that colour's rays focus on the retina.</p>
+      <div class="control">
+        <label for="input-axis"><span>Axis <small>(Curvature 1 meridian)</small></span><output id="out-axis"></output></label>
+        <input type="range" id="input-axis" min="0" max="180" step="1" value="90">
+      </div>
+      <label class="check" for="input-exaggerate">
+        <input type="checkbox" id="input-exaggerate" checked>
+        <span>Exaggerate curvature <small id="exaggeration-factor"></small></span>
+      </label>
+      <p class="hint">Exaggeration makes the shape difference visible. The numbers below are always true values.</p>
+
+      <h2>Show</h2>
+      <div class="toggles">
+        <button type="button" class="toggle" data-show="rays" aria-pressed="true">Light rays</button>
+        <button type="button" class="toggle" data-show="lines" aria-pressed="true">Curvature lines</button>
+      </div>
+
+      <h2>Readouts</h2>
+      <dl class="readouts">
+        <dt>Cylinder</dt><dd id="ro-cyl"></dd>
+        <dt>Type</dt><dd id="ro-type"></dd>
+        <dt><i class="swatch c1"></i>Curvature 1</dt><dd id="ro-curvature-1"></dd>
+        <dt><i class="swatch c2"></i>Curvature 2</dt><dd id="ro-curvature-2"></dd>
+      </dl>
+    </aside>
+
+    <main id="viewer"></main>
+  </div>
+  <p class="hint overlay">Drag to rotate · scroll to zoom · right-drag to pan</p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="js/eyeModel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
