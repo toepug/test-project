@@ -12,11 +12,11 @@ const EyeModel = (() => {
   // Dimensions in mm (schematic values).
   const DIM = {
     referencePower: 43.5,    // sizes the globe; the toric cornea is pinned to it at the limbus
-    corneaPosteriorR: 6.5,
-    corneaCentralThickness: 0.55,
+    corneaThickness: 0.25,      // drawn thickness (same as the sclera and retina), constant except across the outer rim
+    corneaRimRampPower: 6,      // how late the posterior surface bends back to the inner limbus
     corneaDiameter: 11.7,
     scleraOuterR: 12.0,
-    scleraThickness: 1.0,
+    scleraThickness: 0.25,
     retinaThickness: 0.25,
     oraSerrataAngleDeg: 60,  // anterior edge of the retina, polar angle from the globe centre
     meridianLineRadius: 0.07,
@@ -30,6 +30,12 @@ const EyeModel = (() => {
     rayStubBeyondRetina: 4,     // mm of dotted ray drawn past the retina when the focus is in front of it
     focusDotSize: 0.7,          // mm across the dot marking where a ray pair meets
     limbalBlendStart: 0.45,     // fraction of the limbus radius where meridians start easing onto the fixed limbus
+    irisDepth: 3.6,             // mm behind the reference apex to the iris's front face
+    irisThickness: 0.25,        // same as the cornea, sclera and retina
+    pupilRadius: 2.75,          // default; just wider than rayHeight, so the rays pass through the pupil
+    lensDiameter: 10,
+    lensAnteriorR: 10,          // Gullstrand-style schematic radii; thickness follows from the diameter
+    lensPosteriorR: 6,
   };
 
   const COLORS = {
@@ -41,7 +47,18 @@ const EyeModel = (() => {
     curvature2: 0xff5a5a, // red
     rays1: 0x7fc4ff,      // lighter blue, for curvature 1's rays
     rays2: 0xff8a5c,      // orange-red, for curvature 2's rays
+    iris: 0x6b4a2b,
   };
+
+  // Cataract stages for the lens, clear to end stage (brunescent): sRGB colour and opacity.
+  const CATARACT_STAGES = [
+    { name: 'Clear',           color: 0xeef6ff, opacity: 0.25 },
+    { name: 'Yellowish',       color: 0xf5eaa8, opacity: 0.4 },
+    { name: 'Yellow',          color: 0xf2d64b, opacity: 0.5 },
+    { name: 'Dark yellow',     color: 0xd9a91c, opacity: 0.62 },
+    { name: 'Brownish yellow', color: 0xa8741e, opacity: 0.78 },
+    { name: 'End stage',       color: 0x5a3414, opacity: 0.93 },
+  ];
 
   // Points on a circle centred on the axis at y = c, radius R, sweeping the polar
   // angle (measured from +y) from a0 to a1.
@@ -54,12 +71,6 @@ const EyeModel = (() => {
     return pts;
   }
 
-  // Intersection (r >= 0) of two axis-centred circles (centre y, radius R).
-  function circleIntersection(c1, R1, c2, R2) {
-    const y = (R1 * R1 - R2 * R2 - c1 * c1 + c2 * c2) / (2 * (c2 - c1));
-    return { r: Math.sqrt(R1 * R1 - (y - c1) * (y - c1)), y };
-  }
-
   // Sag (depth behind the apex) of a sphere of radius R at height r.
   const sphereSag = (R, r) => R - Math.sqrt(R * R - r * r);
 
@@ -67,12 +78,13 @@ const EyeModel = (() => {
     const refR = radiusFromPower(DIM.referencePower);
     const limbusR = DIM.corneaDiameter / 2;
     const limbusY = -sphereSag(refR, limbusR);
-    const cP = -DIM.corneaCentralThickness - DIM.corneaPosteriorR;         // posterior cornea centre
     // Outer sclera passes through the anterior limbus.
     const cS = limbusY - Math.sqrt(DIM.scleraOuterR ** 2 - limbusR ** 2);
     const scleraInnerR = DIM.scleraOuterR - DIM.scleraThickness;
-    // Posterior cornea meets the inner sclera surface.
-    const inner = circleIntersection(cP, DIM.corneaPosteriorR, cS, scleraInnerR);
+    // Posterior cornea meets the inner sclera directly behind the anterior limbus (along the
+    // globe radius), so the join is no thicker than the sclera wall.
+    const s = scleraInnerR / DIM.scleraOuterR;
+    const inner = { r: limbusR * s, y: cS + (limbusY - cS) * s };
     const retinaR = scleraInnerR - DIM.retinaThickness;
     // Teaching depth scale for focal points (CLAUDE.md §7.1): a cornea alone focuses ~30 mm
     // back, behind any retina, so focal distances are scaled so the reference cornea focuses
@@ -81,7 +93,7 @@ const EyeModel = (() => {
     const refApexY = limbusY + (refK * limbusR * limbusR) / 2;
     const axialLength = refApexY - (cS - retinaR);
     const depthScale = axialLength / (N_CORNEA / (N_CORNEA - 1) / refK);
-    return { limbusR, limbusY, cP, cS, scleraInnerR, inner, retinaR, depthScale };
+    return { limbusR, limbusY, cS, scleraInnerR, inner, retinaR, depthScale, refApexY };
   }
 
   const L = computeLayout();
@@ -115,34 +127,23 @@ const EyeModel = (() => {
     return natural + blendWeight(r) * edgeError;
   }
 
-  // Posterior cornea: moves with the apex at its centre, fixed to the sclera at its rim.
-  function posteriorGeometry(cornea) {
-    const aBack = Math.atan2(L.inner.r, L.inner.y - L.cP);
-    const geo = new THREE.LatheGeometry(arc(L.cP, DIM.corneaPosteriorR, aBack, 0, 48), 144);
-    const pos = geo.attributes.position.array;
-    for (let i = 0; i < pos.length; i += 3) {
-      const rim = Math.min(1, (pos[i] ** 2 + pos[i + 2] ** 2) / L.inner.r ** 2);
-      pos[i + 1] += cornea.offset * (1 - rim);
-    }
-    geo.computeVertexNormals();
-    return geo;
+  // Posterior cornea: follows the anterior surface at a constant corneaThickness, then bends
+  // back across the outer rim to meet the fixed inner limbus on the sclera.
+  function posteriorY(r, phiDeg, cornea) {
+    const rimGap = anteriorY(L.inner.r, phiDeg, cornea) - DIM.corneaThickness - L.inner.y;
+    const ramp = (r / L.inner.r) ** DIM.corneaRimRampPower;
+    return anteriorY(r, phiDeg, cornea) - DIM.corneaThickness - ramp * rimGap;
   }
 
-  // Local-frame point on the anterior surface at signed height r along meridian θ.
-  function anteriorPoint(r, thetaDeg, cornea, lift = 0) {
-    const t = THREE.MathUtils.degToRad(thetaDeg);
-    const phi = r >= 0 ? thetaDeg : thetaDeg + 180;
-    return new THREE.Vector3(r * Math.cos(t), anteriorY(Math.abs(r), phi, cornea) + lift, -r * Math.sin(t));
-  }
-
-  function anteriorGeometry(cornea) {
+  // Polar grid surface out to radius rMax; y(r, φ) gives its axial position.
+  function surfaceGeometry(rMax, y) {
     const radial = 48, angular = 144;
     const pos = [], idx = [];
     for (let i = 0; i <= radial; i++) {
-      const r = (L.limbusR * i) / radial;
+      const r = (rMax * i) / radial;
       for (let j = 0; j <= angular; j++) {
-        const p = anteriorPoint(r, (360 * j) / angular, cornea);
-        pos.push(p.x, p.y, p.z);
+        const theta = (360 * j) / angular, t = THREE.MathUtils.degToRad(theta);
+        pos.push(r * Math.cos(t), y(r, theta), -r * Math.sin(t));
       }
     }
     for (let i = 0; i < radial; i++) {
@@ -156,6 +157,16 @@ const EyeModel = (() => {
     geo.setIndex(idx);
     geo.computeVertexNormals();
     return geo;
+  }
+
+  const anteriorGeometry = (cornea) => surfaceGeometry(L.limbusR, (r, phi) => anteriorY(r, phi, cornea));
+  const posteriorGeometry = (cornea) => surfaceGeometry(L.inner.r, (r, phi) => posteriorY(r, phi, cornea));
+
+  // Local-frame point on the anterior surface at signed height r along meridian θ.
+  function anteriorPoint(r, thetaDeg, cornea, lift = 0) {
+    const t = THREE.MathUtils.degToRad(thetaDeg);
+    const phi = r >= 0 ? thetaDeg : thetaDeg + 180;
+    return new THREE.Vector3(r * Math.cos(t), anteriorY(Math.abs(r), phi, cornea) + lift, -r * Math.sin(t));
   }
 
   // A thin tube lying on the anterior surface along meridian θ, limbus to limbus.
@@ -281,6 +292,87 @@ const EyeModel = (() => {
     return sprite;
   }
 
+  // ---------- Iris and lens (anatomy only: the optics stay cornea-only, CLAUDE.md §1) ----------
+  // Both are full 360° like the cornea, and are fixed to the static eyeball.
+
+  // Lens: fixed in place. It is seated so its front surface touches the back of the iris at the
+  // default pupil margin, so it bulges slightly into the pupil.
+  const LENS = (() => {
+    const irisBack = L.refApexY - DIM.irisDepth - DIM.irisThickness;
+    const apex = irisBack + sphereSag(DIM.lensAnteriorR, DIM.pupilRadius);
+    const rEq = DIM.lensDiameter / 2;
+    const thickness = sphereSag(DIM.lensAnteriorR, rEq) + sphereSag(DIM.lensPosteriorR, rEq);
+    return { irisBack, rEq, cA: apex - DIM.lensAnteriorR, cB: apex - thickness + DIM.lensPosteriorR };
+  })();
+  const lensFrontY = (r) =>
+    r < LENS.rEq ? LENS.cA + Math.sqrt(DIM.lensAnteriorR ** 2 - r * r) : -Infinity;
+
+  // Iris: an annulus from the pupil out to the cornea's diameter. It is flat, except that a pupil
+  // smaller than the default makes its inner part rest on the lens, curving slightly forward.
+  // Each face/edge segment repeats its end points, so the lathe keeps hard edges at the corners.
+  function irisGeometry(pupilRadius) {
+    const steps = 24;
+    const back = (r) => Math.max(LENS.irisBack, lensFrontY(r));
+    const front = (r) => back(r) + DIM.irisThickness;
+    const radii = Array.from({ length: steps + 1 }, (_, i) => pupilRadius + ((L.limbusR - pupilRadius) * i) / steps);
+    const v = (r, y) => new THREE.Vector2(r, y);
+    const profile = [
+      ...radii.map((r) => v(r, front(r))),
+      v(L.limbusR, front(L.limbusR)), v(L.limbusR, back(L.limbusR)),
+      ...[...radii].reverse().map((r) => v(r, back(r))),
+      v(pupilRadius, back(pupilRadius)), v(pupilRadius, front(pupilRadius)),
+    ];
+    return new THREE.LatheGeometry(profile, 96);
+  }
+
+  function iris() {
+    const mesh = new THREE.Mesh(
+      irisGeometry(DIM.pupilRadius),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(COLORS.iris).convertSRGBToLinear(), roughness: 0.8, side: THREE.DoubleSide,
+      })
+    );
+    mesh.userData.kind = 'iris';
+    return mesh;
+  }
+
+  // Resize the pupil (diameter in mm).
+  function setPupil(eye, diameter) {
+    const mesh = eye.userData.iris;
+    mesh.geometry.dispose();
+    mesh.geometry = irisGeometry(diameter / 2);
+  }
+
+  // Biconvex lens: two spherical caps meeting at a sharp equator.
+  function lens() {
+    const profile = [
+      ...arc(LENS.cA, DIM.lensAnteriorR, 0, Math.asin(LENS.rEq / DIM.lensAnteriorR), 32),
+      ...arc(LENS.cB, DIM.lensPosteriorR, Math.PI - Math.asin(LENS.rEq / DIM.lensPosteriorR), Math.PI, 32),
+    ];
+    // Translucent and closed: draw the far side first, then the near side, so its own faces
+    // never sort over each other. Both before the translucent cornea (renderOrder 2).
+    const geometry = new THREE.LatheGeometry(profile, 96);
+    const group = new THREE.Group();
+    [THREE.BackSide, THREE.FrontSide].forEach((side, i) => {
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+        transparent: true, shininess: 80, specular: 0xffffff, side, depthWrite: false,
+      }));
+      mesh.renderOrder = 1 + i * 0.5;
+      group.add(mesh);
+    });
+    group.userData.kind = 'lens';
+    return group;
+  }
+
+  // Colour the lens for a cataract stage (index into CATARACT_STAGES).
+  function setCataract(eye, stage) {
+    const { color, opacity } = CATARACT_STAGES[stage];
+    for (const { material } of eye.userData.lens.children) {
+      material.color.set(color).convertSRGBToLinear();
+      material.opacity = opacity;
+    }
+  }
+
   // True power at which a meridian's rays focus exactly on the retina's posterior pole, given
   // the other meridian's power. The other meridian matters because the apex sits wherever the
   // most curved meridian puts it.
@@ -339,7 +431,7 @@ const EyeModel = (() => {
   }
 
   function applyVisibility(eye) {
-    for (const obj of eye.userData.cornea.children) {
+    for (const obj of [...eye.children, ...eye.userData.cornea.children]) {
       const kind = obj.userData.kind;
       if (kind) obj.visible = eye.userData.show[kind];
     }
@@ -356,7 +448,7 @@ const EyeModel = (() => {
     });
     group.add(corneaGroup);
     group.userData.cornea = corneaGroup;
-    group.userData.show = { lines: true, rays: true };
+    group.userData.show = { lines: true, rays: true, iris: true, lens: true };
 
     // Polar angles (from +y, about the globe centre) of the limbus points on the sclera.
     const aScleraOuter = Math.atan2(L.limbusR, L.limbusY - L.cS);
@@ -395,6 +487,12 @@ const EyeModel = (() => {
     retinaCutMat.color.convertLinearToSRGB().multiplyScalar(0.8).convertSRGBToLinear();
     group.add(new THREE.Mesh(new THREE.ShapeGeometry(retinaShape, 1).rotateY(Math.PI / 2), retinaCutMat));
 
+    group.userData.iris = iris();
+    group.userData.lens = lens();
+    group.add(group.userData.iris, group.userData.lens);
+    setCataract(group, 0);
+    applyVisibility(group);
+
     // Optical axis along world Z, anterior toward +Z.
     group.rotation.x = Math.PI / 2;
     // Centre of the globe, for framing the camera.
@@ -403,5 +501,5 @@ const EyeModel = (() => {
     return group;
   }
 
-  return { build, updateCornea, setVisibility, retinaFocusPower, DIM, COLORS };
+  return { build, updateCornea, setVisibility, setPupil, setCataract, retinaFocusPower, DIM, COLORS, CATARACT_STAGES };
 })();

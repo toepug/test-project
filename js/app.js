@@ -103,17 +103,55 @@
     $('ro-curvature-2').textContent = `${power2.toFixed(2)} D @ ${displayAxis(c.meridian2)}°`;
   }
 
+  // Lock: moving either curvature slider moves the other by the same amount, keeping the
+  // difference between them. The move is limited so neither slider runs past its end.
+  // Registered before updateCornea so both values are set when the cornea is rebuilt.
+  const lock = $('input-lock-curvatures');
+  const previous = new Map([[inputs.power1, inputs.power1.value], [inputs.power2, inputs.power2.value]]);
+  for (const [el, other] of [[inputs.power1, inputs.power2], [inputs.power2, inputs.power1]]) {
+    el.addEventListener('input', () => {
+      if (lock.checked) {
+        const otherValue = parseFloat(other.value);
+        const delta = Math.min(Math.max(el.value - previous.get(el), other.min - otherValue), other.max - otherValue);
+        el.value = parseFloat(previous.get(el)) + delta;
+        other.value = otherValue + delta;
+      }
+      for (const input of previous.keys()) previous.set(input, input.value);
+    });
+  }
+
   for (const el of Object.values(inputs)) el.addEventListener('input', updateCornea);
   updateCornea();
 
-  // Show/hide toggles for the light rays and curvature lines.
+  // Show/hide toggles. A control marked data-show-for="<name>" is shown only while that part is.
   for (const btn of document.querySelectorAll('[data-show]')) {
     btn.addEventListener('click', () => {
       const on = btn.getAttribute('aria-pressed') !== 'true';
       btn.setAttribute('aria-pressed', String(on));
       EyeModel.setVisibility(eye, { [btn.dataset.show]: on });
+      for (const el of document.querySelectorAll(`[data-show-for="${btn.dataset.show}"]`)) el.hidden = !on;
     });
   }
+
+  // Pupil size (diameter, mm).
+  const pupil = $('input-pupil');
+  function updatePupil() {
+    const diameter = parseFloat(pupil.value);
+    EyeModel.setPupil(eye, diameter);
+    $('out-pupil').textContent = `${diameter.toFixed(1)} mm`;
+  }
+  pupil.addEventListener('input', updatePupil);
+  updatePupil();
+
+  // Cataract stage of the lens.
+  const cataract = $('input-cataract');
+  function updateCataract() {
+    const stage = parseInt(cataract.value, 10);
+    EyeModel.setCataract(eye, stage);
+    $('out-cataract').textContent = EyeModel.CATARACT_STAGES[stage].name;
+  }
+  cataract.addEventListener('input', updateCataract);
+  updateCataract();
 
   for (const btn of document.querySelectorAll('[data-view]')) {
     btn.addEventListener('click', () => setView(btn.dataset.view));

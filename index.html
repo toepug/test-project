@@ -23,17 +23,21 @@
       <div class="control">
         <label for="input-curvature-1"><span><i class="swatch c1"></i>Curvature 1</span><output id="out-curvature-1"></output></label>
         <div class="slider">
-          <input type="range" id="input-curvature-1" min="38" max="50" step="0.25" value="42">
+          <input type="range" id="input-curvature-1" min="38" max="50" step="0.25" value="43.5">
           <span class="retina-tick" id="tick-curvature-1" title="Focuses on the retina"></span>
         </div>
       </div>
       <div class="control">
         <label for="input-curvature-2"><span><i class="swatch c2"></i>Curvature 2</span><output id="out-curvature-2"></output></label>
         <div class="slider">
-          <input type="range" id="input-curvature-2" min="38" max="50" step="0.25" value="45">
+          <input type="range" id="input-curvature-2" min="38" max="50" step="0.25" value="43.5">
           <span class="retina-tick" id="tick-curvature-2" title="Focuses on the retina"></span>
         </div>
       </div>
+      <label class="check" for="input-lock-curvatures">
+        <input type="checkbox" id="input-lock-curvatures">
+        <span>Lock curvatures together</span>
+      </label>
       <p class="hint"><i class="tick-key"></i>Green tick: the setting where that colour's rays focus on the retina.</p>
       <div class="control">
         <label for="input-axis"><span>Axis <small>(Curvature 1 meridian)</small></span><output id="out-axis"></output></label>
@@ -49,6 +53,16 @@
       <div class="toggles">
         <button type="button" class="toggle" data-show="rays" aria-pressed="true">Light rays</button>
         <button type="button" class="toggle" data-show="lines" aria-pressed="true">Curvature lines</button>
+        <button type="button" class="toggle" data-show="iris" aria-pressed="true">Iris / pupil</button>
+        <button type="button" class="toggle" data-show="lens" aria-pressed="true">Lens</button>
+        <div class="control sub-control pupil-control" data-show-for="iris">
+          <label for="input-pupil"><span>Pupil</span><output id="out-pupil"></output></label>
+          <input type="range" id="input-pupil" min="2" max="8" step="0.5" value="5.5">
+        </div>
+        <div class="control sub-control cataract-control" data-show-for="lens">
+          <label for="input-cataract"><span>Cataract</span><output id="out-cataract"></output></label>
+          <input type="range" id="input-cataract" min="0" max="5" step="1" value="0">
+        </div>
       </div>
 
       <h2>Readouts</h2>

@@ -1,52 +1,67 @@
 # Product Specification: Corneal Astigmatism Optics Visualizer
 
-## 0. Current Status & Handoff (updated 2026-10-11) — read this first
+## 0. Current Status & Handoff (updated 2026-10-11, evening) — read this first
 
 **Purpose:** a patient-education tool that shows what corneal astigmatism is. It is a single rotatable Three.js 3D eye, not the three-viewport app described in Sections 2, 4 and 5. Those sections are superseded by Section 8, which holds the authoritative details of the current model. Section 7 decisions still apply where noted.
 
 ### What exists now
-* `index.html`: top bar with camera presets (45° / Front / Side / Top), and a left sidebar with the Curvature 1 and Curvature 2 sliders (38–50 D) plus green retina-focus ticks, the Axis slider, the "Exaggerate curvature (×5)" checkbox, the Show toggles (Light rays, Curvature lines) and the readouts (cylinder, WTR/ATR/Oblique type, each curvature's power @ meridian).
-* `js/eyeModel.js`: all geometry and optics.
-  * Static half-shell sclera (cut through the optical axis, solid half on the left in the front view) with a cut face, and a green retina whose cut edge is 20% darker.
-  * An uncut toric cornea (elliptic paraboloid, exaggerated ×5). Its edge is fixed to the eyeball, which never deforms.
-  * Blue (Curvature 1) and red (Curvature 2) meridian lines.
-  * Two light rays per meridian, solid to the retina and dotted beyond, with a focus dot where each pair meets.
-* `js/app.js`: scene, lights, OrbitControls, camera presets, slider and readout wiring, show toggles, retina-focus tick placement.
+* `index.html`: top bar with camera presets (45° / Front / Side / Top). The left sidebar has:
+  * the Curvature 1 and Curvature 2 sliders (38–50 D, **default 43.5 D**, the retina-focus point) with green retina-focus ticks;
+  * a **"Lock curvatures together"** checkbox;
+  * the Axis slider and the "Exaggerate curvature (×5)" checkbox;
+  * four Show toggles in a 2×2 grid: Light rays, Curvature lines, **Iris / pupil**, **Lens**. Under Iris / pupil sits a **Pupil** slider (2–8 mm), and under Lens a **Cataract** slider (6 stages). Each slider shows only while its part is shown;
+  * the readouts: cylinder, WTR/ATR/Oblique type, and each curvature's power @ meridian.
+* `js/eyeModel.js`: all geometry and optics. Exports `build, updateCornea, setVisibility, setPupil, setCataract, retinaFocusPower, DIM, COLORS, CATARACT_STAGES`.
+  * Static half-shell sclera and green retina. The cornea, sclera, retina and iris are all **0.25 mm** thick.
+  * An uncut toric cornea (elliptic paraboloid, exaggerated ×5) whose edge is fixed to the eyeball.
+  * Blue and red meridian lines, plus light rays with focus dots.
+  * An iris with an adjustable pupil, and a lens with cataract stages. Both are **anatomy only**: the rays ignore them.
+* `js/app.js`: scene, lights, OrbitControls, camera presets, slider and readout wiring, curvature lock, show toggles (and their sub-sliders), pupil and cataract wiring, retina-focus tick placement.
 * `css/styles.css`: dark UI.
 
-### Changes made in the 2026-10-10/11 sessions (in order)
-1. Built the original three-viewport app from the spec, then **discarded it** at the user's request.
-2. Rebuilt as one 3D model: half-hemisphere sclera, uncut cornea, then flipped so the solid half is on the left.
-3. Added the retina, with a darker cut edge.
-4. Added the toric cornea with sliders and meridian lines. Renamed flat/steep to **Curvature 1 / Curvature 2** with no swapping.
-5. Made the curvature differences obvious: ×5 exaggeration, paraboloid surface, **fixed eyeball** (only the cornea changes shape).
-6. Added the light rays, focus dots, retina-focus slider ticks, and the Show toggles.
+### Changes made in the 2026-10-11 evening session (in order)
+1. Both curvature sliders now default to 43.5 D, where both meridians focus on the retina (no astigmatism at start).
+2. Added the Iris / pupil and Lens show toggles; the toggle row became a 2×2 grid.
+3. Set the iris diameter to the cornea's (11.7 mm), not out to the sclera wall. This leaves a small gap (≤0.8 mm) between the iris root and the sclera.
+4. Added "Lock curvatures together". Moving either slider moves the other by the same amount, so the cylinder stays constant. The move is clamped so neither slider passes its end.
+5. Thinned the eye: the cornea, sclera and iris are now 0.25 mm, matching the retina.
+   * The posterior cornea now follows the anterior surface at constant thickness, bending back only near the rim (`posteriorY`, `corneaRimRampPower`).
+   * The inner limbus is now the point on the inner sclera directly behind the anterior limbus. The old schematic posterior sphere (`corneaPosteriorR`, `corneaCentralThickness`, `circleIntersection`) was removed.
+   * The thinner sclera moved the retina ~0.75 mm outward. The depth scale is recomputed from it automatically, so 43.5 D still focuses on the retina.
+6. Added the Pupil slider (2–8 mm, default 5.5 mm). The lens stays fixed. A pupil smaller than the default makes the inner iris drape forward over the lens instead of intersecting it.
+7. Added the Cataract slider: Clear → Yellowish → Yellow → Dark yellow → Brownish yellow → End stage (`CATARACT_STAGES`: colour plus opacity; the default is Clear). The lens is drawn as two meshes, back faces then front faces, to avoid transparency-sorting artefacts.
 
-### Next steps / open ideas (none requested yet; confirm with the user before building)
-* **Commit and push first.** Nothing from these sessions is committed (see Environment below).
-* Decide what to do about the deleted `README.md` (shown as `D` in git status; deleted before these sessions and never confirmed).
-* Possible features: rays for oblique (non-principal) meridians; a visible Sturm's interval / circle of least confusion; an eye-length slider; a camera preset that shows both meridian profiles at once; on-screen labels for patients; hiding the clinical readouts (cylinder / type) in a patient mode.
-* Known limitations to keep in mind:
-  * Rays are paraxial: they aim straight at the focal point rather than being exactly traced.
-  * Focal depth uses the teaching depth scale (§7.1), so 43.5 D focuses on the retina.
-  * Focus dots draw on top of everything (`depthTest: false`).
-  * The retina tick can't always be hit exactly because the sliders step in 0.25 D.
-* Unused spec items not yet ported to the 3D model: ray density, selected cross-section plane, Placido rings.
+### Next steps / open ideas (confirm with the user before building)
+* **Commit and push this session's work first** if it isn't already (check `git status`; see Environment). Then `git pull` on the other laptop.
+* Pupil slider below ~5 mm: the rays (fixed at ±2.5 mm) visibly pass through the iris. Options: let the iris block the rays, or scale the ray height to the pupil.
+* The lens and cataract don't affect the rays. Consider a note on screen, or dimming the rays with cataract stage, if that is wanted for teaching.
+* The iris-to-sclera gap from change 3 can be closed by moving the iris forward or sloping its outer edge, if the user wants.
+* Front view: two overlapping translucent cornea layers wash out the inner iris slightly (a cosmetic issue that predates these changes).
+* Earlier feature ideas, still open: rays for oblique meridians; a visible Sturm's interval / circle of least confusion; an eye-length slider; a camera preset showing both meridian profiles; on-screen labels for patients; a patient mode that hides the clinical readouts.
+* Known limitations: the rays are paraxial (aimed at the focal point); focal depth uses the teaching depth scale (§7.1); the focus dots draw on top (`depthTest: false`); sliders step in 0.25 D, so a retina tick can't always be hit exactly.
+* Unused spec items not yet ported: ray density, selected cross-section plane, Placido rings.
 
 ### Environment & commands
 * **No build step, no package manager.** Open `index.html` directly in a browser (double-click or `start index.html`). An internet connection is required because Three.js r128 and OrbitControls load from CDNs.
-* **Git:** remote `origin` = `https://github.com/toepug/test-project.git`, branch `main`. Only the initial commit exists. `CLAUDE.md`, `index.html`, `css/` and `js/` are **untracked**, so nothing will reach the other laptop until they are committed and pushed:
+* **Git:** remote `origin` = `https://github.com/toepug/test-project.git`, branch `main`. Everything is tracked. Commit and push to sync:
   ```
-  git add CLAUDE.md index.html css js
-  git commit -m "3D corneal astigmatism visualizer"
+  git add -A
+  git commit -m "Iris/pupil, lens/cataract, curvature lock, thinner eye walls"
   git push origin main
   ```
-  Then on the other laptop: `git clone https://github.com/toepug/test-project.git` (or `git pull`).
-* **This machine (Windows 11) has no Node.js or Python.** Visual checks were done with headless Edge screenshots. Copy `index.html` to a scratch folder with `<base href="file:///C:/dev/test-project/">` inserted after `<head>`, optionally add a `<script>` that sets sliders and clicks buttons, then run:
-  ```
-  msedge --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --hide-scrollbars --window-size=1300,800 --virtual-time-budget=4000 --user-data-dir=<scratch>\edge-profile --screenshot=<scratch>\shot.png --enable-logging=stderr --v=0 file:///<scratch>/page.html
-  ```
-  Then search the stderr log for `Uncaught` or `THREE.` warnings. The "Tracking Prevention blocked access to storage" lines are harmless.
+  On the other laptop: `git pull` (or `git clone https://github.com/toepug/test-project.git`).
+* **Two machines:**
+  * Laptop A has the project at `C:\dev\test-project` and no Node.js or Python.
+  * Laptop B has it at `C:\Users\jason\dev\test-project`, with Python 3.13 (no Pillow) and no Node.js.
+  * Neither machine has Edge on PATH. It is at `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`.
+* **Visual checks (headless Edge screenshots):**
+  1. Copy `index.html` to a scratch folder with `<base href="file:///<project path>/">` inserted after `<head>`.
+  2. Optionally add a `<script>` before `</body>` that sets sliders (set `.value`, then `dispatchEvent(new Event('input'))`) or clicks buttons (for example `document.querySelector('[data-view=side]').click()`).
+  3. Run:
+     ```
+     "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --hide-scrollbars --window-size=1300,800 --virtual-time-budget=4000 --user-data-dir=<scratch>\edge-profile --screenshot=<scratch>\shot.png --enable-logging=stderr --v=0 file:///<scratch>/page.html 2> <scratch>\log.txt
+     ```
+  4. Search the log for `Uncaught` or `THREE.` warnings. Use `console.log(...)` in the injected script to read values back from the log. The "Tracking Prevention blocked access to storage" lines are harmless.
 * **Colour gotcha:** the renderer outputs sRGB (r128). Wrap hex colours that must display exactly in `new THREE.Color(hex).convertSRGBToLinear()`.
 
 ## 1. System Prompt & High-Level Directives
@@ -258,16 +273,21 @@ These override any conflicting wording above.
 
 The three-viewport layout was dropped. The app is now **one rotatable Three.js 3D model** (OrbitControls + camera preset buttons), built up incrementally.
 
-* **Current files:** `index.html`, `css/styles.css`, `js/eyeModel.js` (geometry), `js/app.js` (scene, camera, controls).
+* **Current files:** `index.html`, `css/styles.css`, `js/eyeModel.js` (geometry), `js/app.js` (scene, camera, controls, UI wiring).
 * **Coordinates:** optical axis = world Z, corneal apex at the origin, anterior = +Z, units in mm.
+* **Wall thickness:** the cornea, sclera, retina and iris are all 0.25 mm (`corneaThickness`, `scleraThickness`, `retinaThickness`, `irisThickness`).
 * **Eye globe:** the sclera is strictly a half shell — cut in half by a plane through the optical axis (world x = 0, the x > 0 half removed so the solid half sits on the left in the front view) with a visible cut face. The **cornea is never cut**: it stays a complete 360° solid on the front.
 * **Retina:** a 0.25 mm green layer lining the inner sclera of the same half, from the ora serrata (60° polar angle from the globe centre) to the back.
-* **Cornea:** toric anterior surface driven by `#input-curvature-1`, `#input-curvature-2`, `#input-axis`. The surface is an elliptic paraboloid: along meridian φ, sag = k(φ)·r²/2 with Euler's k(φ) = k1·cos² + k2·sin² (φ from meridian 1, k = 1/R, R = 0.376/P). Paraboloid, not circular arcs, so heavy exaggeration never hits the hemisphere limit. **The eyeball never deforms** (user requirement, 2026-10-11): sclera, cut face and retina are static, and the limbus ring is fixed. The cornea apex is placed so the **most curved** meridian lands exactly on the fixed limbus (a clean curve edge to edge); every other meridian only needs pulling back at the rim, which adds curvature and never makes a reverse bend. From `limbalBlendStart` (0.45 × limbus radius) outward those meridians ease onto the fixed ring with a t² ramp (ease-in only). The posterior cornea moves with the apex at its centre and stays fixed to the sclera at its rim. The globe is sized from a 43.5 D reference cornea.
+* **Cornea:** toric anterior surface driven by `#input-curvature-1`, `#input-curvature-2`, `#input-axis`. The surface is an elliptic paraboloid: along meridian φ, sag = k(φ)·r²/2 with Euler's k(φ) = k1·cos² + k2·sin² (φ from meridian 1, k = 1/R, R = 0.376/P). Paraboloid, not circular arcs, so heavy exaggeration never hits the hemisphere limit. **The eyeball never deforms** (user requirement, 2026-10-11): sclera, cut face and retina are static, and the limbus ring is fixed. The cornea apex is placed so the **most curved** meridian lands exactly on the fixed limbus (a clean curve edge to edge); every other meridian only needs pulling back at the rim, which adds curvature and never makes a reverse bend. From `limbalBlendStart` (0.45 × limbus radius) outward those meridians ease onto the fixed ring with a t² ramp (ease-in only). The posterior cornea (`posteriorY`) follows the anterior surface at a constant `corneaThickness`, bending back across the outer rim (ramp `(r/inner.r)^corneaRimRampPower`) to meet the fixed inner limbus. The inner limbus is the point on the inner sclera directly behind the anterior limbus, along the globe radius. The globe is sized from a 43.5 D reference cornea.
 * **Curvature exaggeration (patient education):** on by default (`#input-exaggerate`). Drawn power = 43.5 + 5 × (true power − 43.5), floored at 5 D so the flattest meridian stays convex (38 D draws as 16 D, 50 D as 76 D). Readouts always show true values.
 * **Meridian lines:** blue (Curvature 1) and red (Curvature 2) tubes lying on the anterior surface, limbus to limbus, always 90° apart.
 * **Light rays:** two parallel rays per principal meridian at ±2.5 mm (light blue `#7fc4ff` for Curvature 1, orange-red `#ff8a5c` for Curvature 2). Each refracts at its entry point on the anterior surface and heads straight for that meridian's focal point on the axis (paraxial principal-meridian focus, f = n/P using the *drawn* curvature). Focal depth uses the §7.1 teaching depth scale, computed so the 43.5 D reference cornea focuses exactly on the retina's posterior pole. Solid tubes up to the retina sphere, dotted beyond it: out to the focal point if it lies behind the retina, otherwise a 4 mm stub.
 * **Focus dots:** a camera-facing filled dot sprite (0.7 mm, ray colour, drawn on top) at each meridian's focal point.
 * **Retina-focus ticks:** a green tick under each curvature slider marks the true power whose rays focus on the retina's posterior pole (`EyeModel.retinaFocusPower(otherPower, exaggeration)`). It depends on the other slider because the apex position is set by the more curved meridian, and on the exaggeration setting; hidden when off the 38–50 D range.
-* **Show toggles:** sidebar buttons (`[data-show="rays"]`, `[data-show="lines"]`, `aria-pressed`) call `EyeModel.setVisibility(eye, { rays, lines })`. Objects are tagged `userData.kind`; the state lives on `eye.userData.show` so it survives the cornea being rebuilt on every slider move.
+* **Slider defaults:** both curvatures start at 43.5 D (`value` in `index.html`). That is where both meridians focus on the retina's posterior pole, because the depth scale is defined from the 43.5 D reference.
+* **Curvature lock:** `#input-lock-curvatures` (off by default). While on, moving either curvature slider moves the other by the same delta, so the cylinder stays constant. The delta is clamped so the other slider stays in 38–50 D. Its listener is registered before `updateCornea` so both values are set before the rebuild.
+* **Show toggles:** sidebar buttons (`[data-show="rays|lines|iris|lens"]`, `aria-pressed`, all on by default) call `EyeModel.setVisibility(eye, {...})`. Objects are tagged `userData.kind`; `applyVisibility` checks both the eye's direct children (iris, lens) and the cornea group's children. The state lives on `eye.userData.show` so it survives the cornea being rebuilt on every slider move. Any element with `data-show-for="<kind>"` (the sub-sliders) is hidden while that toggle is off.
+* **Iris / pupil (anatomy only):** a full 360° annulus whose front face is `irisDepth` (3.6 mm) behind the reference apex. It is 0.25 mm thick, and its outer radius equals the cornea's (`limbusR`). `#input-pupil` sets the pupil diameter (2–8 mm, step 0.5, default 5.5) via `EyeModel.setPupil(eye, diameter)`, which swaps the iris geometry. The iris's back face is `max(flat plane, lens front surface)`, so a small pupil drapes forward over the lens rather than cutting into it.
+* **Lens (anatomy only):** a full 360° biconvex lathe: 10 mm diameter, front radius 10 mm, back radius 6 mm, sharp equator. It is fixed in place (`LENS`), seated so its front surface touches the iris back face at the default 2.75 mm pupil radius. It is drawn as two meshes (BackSide, then FrontSide, `renderOrder` 1 / 1.5, below the cornea's 2) to avoid self-sorting artefacts. `#input-cataract` (0–5, default 0) calls `EyeModel.setCataract(eye, stage)`, which sets colour and opacity from `CATARACT_STAGES`: Clear, Yellowish, Yellow, Dark yellow, Brownish yellow, End stage. Rays pass through the iris and lens unaffected; the optics stay cornea-only (§1).
 * **Colour gotcha:** output is sRGB-encoded (r128), so a hex colour that must display exactly needs `convertSRGBToLinear()`.
 * Optics decisions in Section 7 (focal formula, colours, axis convention, Curvature 1/2 naming) still apply when those features are added.
