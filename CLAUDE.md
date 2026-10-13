@@ -5,7 +5,7 @@
 **Purpose:** a patient-education tool that shows corneal astigmatism, and now also myopia/hyperopia (axial length), near vision and accommodation, and cataracts. It is a single rotatable Three.js 3D eye, not the three-viewport app described in Sections 2, 4 and 5. Those sections are superseded by Section 8, which holds the authoritative details of the current model. Section 7 decisions still apply where noted.
 
 ### What exists now
-* **`index.html`:** top bar with camera presets (45° / Front / Side / Top). The left sidebar has three groups of controls.
+* **`index.html`:** top bar with camera presets (45° / Front / Side / Top). A refractive-state label sits over the top left of the 3D view (see §8 "Refractive-state label"). The left sidebar has three groups of controls.
   * **Cornea:**
     * Curvature 1 and Curvature 2 sliders (38–50 D, default 43.5 D) with green retina-focus ticks;
     * a "Lock curvatures together" checkbox;
@@ -35,7 +35,7 @@
 6. The Pupil slider.
 7. The Cataract slider (6 stages at the time).
 
-**Made 2026-10-12/13 (uncommitted until you push; see Next steps):**
+**Committed and pushed in `7fffa32` (2026-10-12/13):**
 1. **Lens highlight fades with cataract stage:** a new `shine` column in `CATARACT_STAGES`, which sets the lens's specular strength.
 2. **Opaque cataract seen from behind:** the lens and cornea draw order is now chosen per frame by `orderForCamera` (whichever is nearer the camera draws last), so the cornea no longer shows through a dense cataract.
 3. **Leukocoria** added as the 7th cataract stage: a white, opaque lens.
@@ -50,8 +50,11 @@
    * Accommodation adds lens power to bring the mean meridian focus back onto the retina, capped at 7 D. Vergence of 7–10 D therefore shows the focus slipping even with accommodation on.
    * The lens visibly rounds up as it accommodates (`lensShape(t)`; front apex fixed).
 
+**Made 2026-10-13 (uncommitted until you push):**
+1. **Refractive-state label** in the top left of the 3D view: Emmetropia / Myopia / Hyperopia / Mixed Astigmatism, with a subtitle naming the type (see §8).
+
 ### Next steps / open ideas (confirm with the user before building)
-* **Commit and push the 2026-10-12/13 work first** (`git status` shows it as modified). Then run `git pull` on the other laptop.
+* **Commit and push the 2026-10-13 label work** (`git status` shows it as modified). Then run `git pull` on the other laptop.
 * In **Astigmatism** ray mode, the iris doesn't block rays at small pupils (Cataracts mode does). Consider adding the same blocking, or scaling the ray height to the pupil.
 * **Readouts that might help patients:** where the focus is relative to the retina ("1.8 mm in front: myopic"); refractive error from axial length; a near-point distance.
 * **Vergence and exaggeration:** vergence and accommodation are *not* exaggerated, so 1 D of vergence moves the focus about as much as 0.2 D on a curvature slider while ×5 is on. Revisit if this confuses anyone.
@@ -334,6 +337,10 @@ The three-viewport layout was dropped. The app is now **one rotatable Three.js 3
   * **Accommodation** (`#input-accommodate`): the lens adds A = clamp(retinaDrawnPower − (mean drawn meridian power − V), 0, `maxAccommodation` = 7 D).
   * **Lens shape:** `setLensShape(eye, A / 7)` interpolates the lens from relaxed (front 10 / back 6 mm radius, 10 mm diameter) to accommodated (5.5 / 5 mm, 9 mm), with the front apex fixed (`LENS_APEX`). The current shape is `eye.userData.lensShape`.
   * **Readout:** `updateCornea` returns `accommodation` and `accommodationNeeded` for the readout.
+* **Refractive-state label** (`#state-label` over the top left of `#viewer`): `updateCornea` returns `cornea.focus = [side1, side2]`, where each side is `'front' | 'on' | 'behind'` for that principal meridian's focus vs the retina's posterior pole. It is the eye's refractive state for distant light and a relaxed lens, so it depends **only on the curvatures and axial length** (user requirement, 2026-10-13): vergence and accommodation are ignored. It is compared in drawn diopters (meridian power − `retinaDrawnPower(axialLength)`). Tolerance is `focusTolerance` (0.125 true D, half a slider step) × exaggeration, so a slider on its tick or the Reset button counts as 'on'. `refractiveState()` in `app.js` maps it:
+  * both 'on' → **Emmetropia / No prescription** (no subtitle);
+  * one 'front' + one 'behind' → **Mixed Astigmatism** (no subtitle);
+  * otherwise **Myopia / Nearsightedness** if any 'front', else **Hyperopia / Farsightedness**, with subtitle **Simple myopic/hyperopic astigmatism** (one 'on'), **Simple myopia/hyperopia** (both off the retina, equal curvatures) or **Compound myopic/hyperopic astigmatism** (both off, different curvatures).
 * **Show toggles:** sidebar buttons (`[data-show="rays|lines|iris|lens"]`, `aria-pressed`, all on by default) call `EyeModel.setVisibility(eye, {...})`. Objects are tagged `userData.kind`; `applyVisibility` checks both the eye's direct children (iris, lens) and the cornea group's children. The state lives on `eye.userData.show` so it survives the cornea being rebuilt on every slider move. Any element with `data-show-for="<kind>"` (the ray checkboxes and the sub-sliders) is hidden while that toggle is off. The Iris / pupil button is pinned to grid column 1 so it always starts a new row below the ray checkboxes. With the Cataracts ray set on, toggling the iris or lens, or changing the pupil or cataract stage, also rebuilds the rays.
 * **Iris / pupil (anatomy only):** a full 360° annulus whose front face is `irisDepth` (3.6 mm) behind the reference apex. It is 0.25 mm thick, and its outer radius equals the cornea's (`limbusR`). `#input-pupil` sets the pupil diameter (2–8 mm, step 0.5, default 5.5) via `EyeModel.setPupil(eye, diameter)`, which swaps the iris geometry. The iris's back face is `max(flat plane, lens front surface)`, so a small pupil drapes forward over the lens rather than cutting into it.
 * **Lens:**

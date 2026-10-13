@@ -157,6 +157,18 @@ body { display: flex; flex-direction: column; }
 #viewer { min-width: 0; min-height: 0; position: relative; }
 #viewer canvas { width: 100%; height: 100%; display: block; }
 
+/* Refractive state (myopia / hyperopia / mixed astigmatism) over the top-left of the 3D view. */
+.state-label {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.state-label[hidden], .state-subtitle[hidden] { display: none; }
+.state-title { font-size: 22px; font-weight: 600; color: var(--text); }
+.state-subtitle { margin-top: 2px; font-size: 13px; color: var(--text-dim); }
+
 .hint { margin: 4px 0 12px; font-size: 12px; color: var(--text-dim); }
 .hint.overlay {
   position: fixed;

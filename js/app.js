@@ -71,6 +71,27 @@
     return 'Oblique';
   }
 
+  // Refractive state from where each meridian focuses ('front' | 'on' | 'behind'), for the label
+  // in the top left.
+  function refractiveState([f1, f2], equalCurvatures) {
+    if (f1 === 'on' && f2 === 'on') return { title: 'Emmetropia / No prescription', subtitle: '' };
+    const sides = [f1, f2];
+    if (sides.includes('front') && sides.includes('behind')) return { title: 'Mixed Astigmatism', subtitle: '' };
+    const myopic = sides.includes('front');
+    const [title, word] = myopic ? ['Myopia / Nearsightedness', 'myopic'] : ['Hyperopia / Farsightedness', 'hyperopic'];
+    const subtitle = sides.includes('on') ? `Simple ${word} astigmatism`
+      : equalCurvatures ? `Simple ${myopic ? 'myopia' : 'hyperopia'}`
+      : `Compound ${word} astigmatism`;
+    return { title, subtitle };
+  }
+
+  function showRefractiveState(state) {
+    $('state-label').hidden = false;
+    $('state-title').textContent = state.title;
+    $('state-subtitle').textContent = state.subtitle;
+    $('state-subtitle').hidden = !state.subtitle;
+  }
+
   // Put a slider's green tick under the value where its rays focus on the retina (hidden when
   // that value is off the slider). The thumb centre travels from half a thumb in to half a thumb
   // from the end, so the tick follows the same path.
@@ -116,6 +137,8 @@
 
     $('ro-curvature-1').textContent = `${power1.toFixed(2)} D @ ${displayAxis(c.meridian1)}°`;
     $('ro-curvature-2').textContent = `${power2.toFixed(2)} D @ ${displayAxis(c.meridian2)}°`;
+
+    showRefractiveState(refractiveState(c.focus, power1 === power2));
   }
 
   // Lock: moving either curvature slider moves the other by the same amount, keeping the

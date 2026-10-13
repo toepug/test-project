@@ -42,6 +42,7 @@ const EyeModel = (() => {
     lensAccommodatedPosteriorR: 5,
     lensAccommodatedDiameter: 9,
     maxAccommodation: 7,        // D the lens can add; beyond it near light focuses behind the retina
+    focusTolerance: 0.125,      // true D (half a slider step) within which a focus counts as on the retina
     vergenceSourceScale: 150,   // mm·D: light of vergence V is drawn diverging from 150/V mm in front
                                 // (truly 1000/V; compressed so the divergence is visible)
     maxFocusDistance: 60,       // mm behind the apex; a focus further back is not drawn
@@ -577,6 +578,19 @@ const EyeModel = (() => {
     cornea.accommodationNeeded = Math.max(0, needed);
     cornea.accommodation = params.accommodate ? Math.min(cornea.accommodationNeeded, DIM.maxAccommodation) : 0;
     setLensShape(eye, cornea.accommodation / DIM.maxAccommodation);
+
+    // The eye's refractive state: where each principal meridian focuses relative to the retina
+    // ('front', 'on' or 'behind') for distant light and a relaxed lens, so it depends only on the
+    // curvatures and axial length, not on vergence or accommodation. Compared in drawn diopters,
+    // like the rays; the tolerance is half a slider step in true diopters, so a slider on its
+    // retina tick (or the Reset button) always counts as 'on'.
+    const retinaPower = retinaDrawnPower(axialLength);
+    const tolerance = DIM.focusTolerance * (params.exaggeration ?? 1);
+    const sideOf = (k) => {
+      const excess = powerOf(k) - retinaPower;
+      return excess > tolerance ? 'front' : excess < -tolerance ? 'behind' : 'on';
+    };
+    cornea.focus = [sideOf(cornea.k1), sideOf(cornea.k2)];
 
     const group = eye.userData.cornea;
     disposeChildren(group);
