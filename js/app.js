@@ -57,7 +57,8 @@
   const $ = (id) => document.getElementById(id);
   const inputs = {
     power1: $('input-curvature-1'), power2: $('input-curvature-2'), axis: $('input-axis'),
-    exaggerate: $('input-exaggerate'),
+    exaggerate: $('input-exaggerate'), axialLength: $('input-axial-length'),
+    vergence: $('input-vergence'), accommodate: $('input-accommodate'),
   };
   $('exaggeration-factor').textContent = `(×${EyeModel.DIM.curvatureExaggeration})`;
   const displayAxis = (a) => (Math.round(a) % 180 === 0 ? 180 : Math.round(a) % 180);
@@ -81,12 +82,28 @@
     tick.title = `Focuses on the retina at ${power.toFixed(2)} D`;
   }
 
+  // Which ray sets the Light rays sub-menu shows (checkboxes, either or both).
+  const rayModes = {};
+  for (const box of document.querySelectorAll('[data-ray-mode]')) rayModes[box.dataset.rayMode] = box.checked;
+
   function updateCornea() {
     const power1 = parseFloat(inputs.power1.value);
     const power2 = parseFloat(inputs.power2.value);
     const axis = parseFloat(inputs.axis.value);
     const exaggeration = inputs.exaggerate.checked ? EyeModel.DIM.curvatureExaggeration : 1;
-    const c = EyeModel.updateCornea(eye, { power1, power2, axis, exaggeration });
+    const axialLength = parseFloat(inputs.axialLength.value);
+    const vergence = parseFloat(inputs.vergence.value);
+    const accommodate = inputs.accommodate.checked;
+    const c = EyeModel.updateCornea(eye, { power1, power2, axis, exaggeration, axialLength, rayModes, vergence, accommodate });
+    $('out-axial-length').textContent = `${axialLength.toFixed(1)} mm`;
+    $('out-vergence').textContent = vergence ? `${vergence.toFixed(2)} D (${Math.round(100 / vergence)} cm)` : '0 D (distant)';
+    const max = EyeModel.DIM.maxAccommodation;
+    $('ro-accommodation').textContent = !accommodate ? 'Off'
+      : c.accommodationNeeded > max ? `${max.toFixed(2)} D (at its limit)`
+      : `${c.accommodation.toFixed(2)} of ${max.toFixed(2)} D`;
+    const focusPower = EyeModel.retinaFocusPower(axialLength, exaggeration);
+    placeRetinaTick('curvature-1', focusPower);
+    placeRetinaTick('curvature-2', focusPower);
 
     $('out-curvature-1').textContent = `${power1.toFixed(2)} D`;
     $('out-curvature-2').textContent = `${power2.toFixed(2)} D`;
@@ -96,8 +113,6 @@
     const cylAxis = power1 <= power2 ? c.meridian1 : c.meridian2;
     $('ro-cyl').textContent = cyl === 0 ? '0.00 D' : `${cyl.toFixed(2)} D @ ${displayAxis(cylAxis)}°`;
     $('ro-type').textContent = astigmatismType(cylAxis, cyl);
-    placeRetinaTick('curvature-1', EyeModel.retinaFocusPower(power2, exaggeration));
-    placeRetinaTick('curvature-2', EyeModel.retinaFocusPower(power1, exaggeration));
 
     $('ro-curvature-1').textContent = `${power1.toFixed(2)} D @ ${displayAxis(c.meridian1)}°`;
     $('ro-curvature-2').textContent = `${power2.toFixed(2)} D @ ${displayAxis(c.meridian2)}°`;
@@ -123,6 +138,19 @@
   for (const el of Object.values(inputs)) el.addEventListener('input', updateCornea);
   updateCornea();
 
+  // Reset both curvatures to the retina-focus power (snapped to the slider step).
+  $('reset-curvatures').addEventListener('click', () => {
+    const step = parseFloat(inputs.power1.step);
+    const exaggeration = inputs.exaggerate.checked ? EyeModel.DIM.curvatureExaggeration : 1;
+    const focusPower = EyeModel.retinaFocusPower(parseFloat(inputs.axialLength.value), exaggeration);
+    const value = Math.min(Math.max(Math.round(focusPower / step) * step, inputs.power1.min), inputs.power1.max);
+    for (const el of previous.keys()) {
+      el.value = value;
+      previous.set(el, el.value); // so a locked drag afterwards starts from here
+    }
+    updateCornea();
+  });
+
   // Show/hide toggles. A control marked data-show-for="<name>" is shown only while that part is.
   for (const btn of document.querySelectorAll('[data-show]')) {
     btn.addEventListener('click', () => {
@@ -130,6 +158,16 @@
       btn.setAttribute('aria-pressed', String(on));
       EyeModel.setVisibility(eye, { [btn.dataset.show]: on });
       for (const el of document.querySelectorAll(`[data-show-for="${btn.dataset.show}"]`)) el.hidden = !on;
+      // The cataract rays depend on whether the iris and lens are shown.
+      if (rayModes.cataract) updateCornea();
+    });
+  }
+
+  // Light rays sub-menu.
+  for (const box of document.querySelectorAll('[data-ray-mode]')) {
+    box.addEventListener('change', () => {
+      rayModes[box.dataset.rayMode] = box.checked;
+      updateCornea();
     });
   }
 
@@ -139,6 +177,7 @@
     const diameter = parseFloat(pupil.value);
     EyeModel.setPupil(eye, diameter);
     $('out-pupil').textContent = `${diameter.toFixed(1)} mm`;
+    if (rayModes.cataract) updateCornea();
   }
   pupil.addEventListener('input', updatePupil);
   updatePupil();
@@ -149,6 +188,7 @@
     const stage = parseInt(cataract.value, 10);
     EyeModel.setCataract(eye, stage);
     $('out-cataract').textContent = EyeModel.CATARACT_STAGES[stage].name;
+    if (rayModes.cataract) updateCornea();
   }
   cataract.addEventListener('input', updateCataract);
   updateCataract();
@@ -162,6 +202,7 @@
   resize();
   renderer.setAnimationLoop(() => {
     controls.update();
+    EyeModel.orderForCamera(eye, camera);
     renderer.render(scene, camera);
   });
 })();

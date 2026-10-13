@@ -84,9 +84,13 @@ body { display: flex; flex-direction: column; }
 .sub-control label { flex-wrap: wrap; column-gap: 6px; }
 .sub-control[hidden] { display: none; }
 .pupil-control { grid-column: 1; }
+/* Light rays sub-menu: which ray sets to show, under the Light rays button. */
+.ray-mode { grid-column: 1; display: flex; flex-direction: column; gap: 4px; }
+/* Iris / pupil starts a new row, so it never moves up beside the ray checkboxes. */
+.toggles [data-show="iris"] { grid-column: 1; }
 .cataract-control { grid-column: 2; }
 .cataract-control output { width: 100%; } /* stage name on its own line, so long names don't shift the layout */
-.toggle {
+.toggle, .action {
   font: inherit;
   color: var(--text-dim);
   background: transparent;
@@ -95,7 +99,8 @@ body { display: flex; flex-direction: column; }
   padding: 6px 8px;
   cursor: pointer;
 }
-.toggle:hover { border-color: var(--text-dim); }
+.toggle:hover, .action:hover { border-color: var(--text-dim); }
+.action { display: block; width: 100%; margin-top: 8px; color: var(--text); }
 .toggle[aria-pressed="true"] {
   color: var(--text);
   background: #1b2330;
